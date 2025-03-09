@@ -128,65 +128,44 @@
             </form>
         </div>
     </div>
-    <script>
+    <Script>
         document.getElementById('loginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Get form data
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            
-            // Simple validation
-            let isValid = true;
-            
-            if (!username) {
-                document.getElementById('usernameError').textContent = 'Username is required';
-                document.getElementById('usernameError').style.display = 'block';
-                isValid = false;
+        e.preventDefault();
+
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        
+        // Basic validation
+        if (!username || !password) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = 'Please enter both username and password';
+            statusMessage.className = 'status-message error';
+            statusMessage.style.display = 'block';
+            return;
+        }
+
+        fetch('/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = data.redirect;
             } else {
-                document.getElementById('usernameError').style.display = 'none';
+                window.location.href = data.redirect;
             }
-            
-            if (!password) {
-                document.getElementById('passwordError').textContent = 'Password is required';
-                document.getElementById('passwordError').style.display = 'block';
-                isValid = false;
-            } else {
-                document.getElementById('passwordError').style.display = 'none';
-            }
-            
-            if (isValid) {
-                // Send data to server
-                fetch('/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ username, password }),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const statusMessage = document.getElementById('statusMessage');
-                    
-                    if (data.success) {
-                        statusMessage.textContent = data.message;
-                        statusMessage.className = 'status-message success';
-                    } else {
-                        statusMessage.textContent = data.message;
-                        statusMessage.className = 'status-message error';
-                    }
-                    
-                    statusMessage.style.display = 'block';
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    const statusMessage = document.getElementById('statusMessage');
-                    statusMessage.textContent = 'An error occurred. Please try again.';
-                    statusMessage.className = 'status-message error';
-                    statusMessage.style.display = 'block';
-                });
-            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Show error message instead of immediate redirect
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = 'Error connecting to server';
+            statusMessage.className = 'status-message error';
+            statusMessage.style.display = 'block';
         });
-    </script>
+    });
+    </Script>
 </body>
 </html>

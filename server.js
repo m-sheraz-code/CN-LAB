@@ -7,6 +7,7 @@ const app = express();
 const mongoUrl = 'mongodb://localhost:27017';
 const dbName = 'users';
 let db;
+let isDbReady = false;
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -19,6 +20,7 @@ async function initDb() {
         const client = new MongoClient(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true });
         await client.connect();
         db = client.db(dbName);
+        isDbReady = true;
 
         // Create users collection if it doesn't exist
         const collections = await db.listCollections({ name: 'users' }).toArray();
@@ -36,10 +38,12 @@ async function initDb() {
             ]);
             console.log('Sample users inserted');
         }
-        
+
         console.log('MongoDB database initialized');
     } catch (err) {
         console.error('Error initializing database:', err);
+        // Try again after a delay
+        setTimeout(initDb, 5000);
     }
 }
 
@@ -48,24 +52,38 @@ initDb();
 
 // Routes
 app.post('/login', async (req, res) => {
+    if (!isDbReady) {
+        return res.status(500).json({ success: false, message: 'Database not initialized yet', redirect: '/sorry.html' });
+    }
+
     const { username, password } = req.body;
-    
+
+    // Basic check for empty fields
+    if (!username || !password) {
+        return res.json({ success: false, redirect: '/sorry.html' });
+    }
+
     try {
         const user = await db.collection('users').findOne({ username, password });
-        
+
         if (user) {
-            res.json({ success: true, message: 'Successfully Logged In' });
+            return res.json({ success: true, redirect: '/congratulations.html' });
         } else {
-            res.json({ success: false, message: 'Login Failed - Record Not Found in Database' });
+            return res.json({ success: false, redirect: '/sorry.html' });
         }
     } catch (err) {
         console.error('Login query error:', err);
-        res.status(500).json({ success: false, message: 'Database error' });
+        return res.status(500).json({ success: false, redirect: '/sorry.html' });
     }
 });
 
+// Serve HTML file
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Start server
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
