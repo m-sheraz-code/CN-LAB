@@ -1,67 +1,67 @@
-// Backend (server.js)
 const express = require('express');
-const mysql = require('mysql2');
+const { MongoClient } = require('mongodb');
 const bodyParser = require('body-parser');
 const path = require('path');
 
 const app = express();
+const mongoUrl = 'mongodb://localhost:27017';
+const dbName = 'users';
+let db;
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// MySQL Database connection
-const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',         
-    password: '',         
-    database: 'login_db'  
-});
+// Connect to MongoDB and initialize database
+async function initDb() {
+    try {
+        const client = new MongoClient(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true });
+        await client.connect();
+        db = client.db(dbName);
 
-// Connect to MySQL
-db.connect((err) => {
-    if (err) {
-        console.error('Error connecting to MySQL database:', err);
-        return;
-    }
-    console.log('Connected to MySQL database');
-    
-    // Create users table if it doesn't exist
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(255) NOT NULL UNIQUE,
-            password VARCHAR(255) NOT NULL
-        )
-    `;
-    
-    db.query(createTableQuery, (err) => {
-        if (err) {
-            console.error('Error creating users table:', err);
-        } else {
-            console.log('Users table ready');
+        // Create users collection if it doesn't exist
+        const collections = await db.listCollections({ name: 'users' }).toArray();
+        if (collections.length === 0) {
+            await db.createCollection('users');
         }
-    });
-});
 
-// Routes
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    
-    const query = "SELECT * FROM users WHERE username = ? AND password = ?";
-    
-    db.query(query, [username, password], (err, results) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: 'Database error' });
+        // Insert sample users if collection is empty
+        const usersCollection = db.collection('users');
+        const userCount = await usersCollection.countDocuments();
+        if (userCount === 0) {
+            await usersCollection.insertMany([
+                { username: 'sheraz1', password: 'password123' },
+                { username: 'sheraz2', password: 'password123' }
+            ]);
+            console.log('Sample users inserted');
         }
         
-        if (results.length > 0) {
+        console.log('MongoDB database initialized');
+    } catch (err) {
+        console.error('Error initializing database:', err);
+    }
+}
+
+// Initialize the database
+initDb();
+
+// Routes
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    
+    try {
+        const user = await db.collection('users').findOne({ username, password });
+        
+        if (user) {
             res.json({ success: true, message: 'Successfully Logged In' });
         } else {
-            res.json({ success: false, message: 'Login Failed – Record Not Found in Database' });
+            res.json({ success: false, message: 'Login Failed - Record Not Found in Database' });
         }
-    });
+    } catch (err) {
+        console.error('Login query error:', err);
+        res.status(500).json({ success: false, message: 'Database error' });
+    }
 });
 
 // Start server
